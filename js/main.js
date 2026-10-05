@@ -66,6 +66,10 @@ function route() {
         if (io) io.observe(x); else x.classList.add('in')
     });
 
+    if (typeof observeCounters === 'function') {
+        observeCounters();
+    }
+
     var t = a[1] && document.getElementById(a[1]);
     if (t) { setTimeout(function () { t.scrollIntoView({ behavior: 'smooth' }) }, 50) }
     else window.scrollTo(0, 0);
@@ -178,3 +182,99 @@ document.querySelectorAll('.hero-carousel').forEach(function (el) {
 });
 
 startHeroCarousel();
+
+/* Scroll-triggered Number Counter Animation */
+var counterObserver;
+try {
+    counterObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+                var el = entry.target;
+                counterObserver.unobserve(el);
+                runCounterAnimation(el);
+            }
+        });
+    }, { threshold: 0.15 });
+} catch (e) { }
+
+function observeCounters() {
+    var targets = document.querySelectorAll('.tg b, .why b, .eq div b, .fr .n, [data-counter]');
+    targets.forEach(function (el) {
+        if (el.dataset.counterDone) return;
+        var text = el.textContent.trim();
+        if (/\d+/.test(text)) {
+            if (counterObserver) {
+                counterObserver.observe(el);
+            } else {
+                runCounterAnimation(el);
+            }
+        }
+    });
+}
+
+function runCounterAnimation(el) {
+    if (el.dataset.counterDone) return;
+    el.dataset.counterDone = "true";
+
+    var fullText = el.textContent.trim();
+    // Match optional prefix, numeric portion (including commas), and optional suffix
+    var match = fullText.match(/^(.*?)(\d[\d,]*)(.*)$/);
+    if (!match) return;
+
+    var prefix = match[1];
+    var numStr = match[2];
+    var suffix = match[3];
+
+    var hasComma = numStr.indexOf(',') !== -1;
+    var cleanNumStr = numStr.replace(/,/g, '');
+    var targetVal = parseInt(cleanNumStr, 10);
+    if (isNaN(targetVal)) return;
+
+    var padLength = (cleanNumStr.length > 1 && cleanNumStr.startsWith('0')) ? cleanNumStr.length : 0;
+    var duration = 1200; // ms
+    var startTime = null;
+
+    function animateFrame(timestamp) {
+        if (!startTime) startTime = timestamp;
+        var elapsed = timestamp - startTime;
+        var progress = Math.min(elapsed / duration, 1);
+
+        // Smooth easeOutCubic deceleration
+        var ease = 1 - Math.pow(1 - progress, 3);
+        var currentVal = Math.floor(ease * targetVal);
+
+        var formattedVal = currentVal.toString();
+        if (padLength > 0) {
+            while (formattedVal.length < padLength) {
+                formattedVal = '0' + formattedVal;
+            }
+        } else if (hasComma) {
+            formattedVal = currentVal.toLocaleString('en-US');
+        }
+
+        el.textContent = prefix + formattedVal + suffix;
+
+        if (progress < 1) {
+            requestAnimationFrame(animateFrame);
+        } else {
+            el.textContent = fullText;
+        }
+    }
+
+    // Set initial formatted value before first frame
+    var initialVal = '0';
+    if (padLength > 0) {
+        while (initialVal.length < padLength) {
+            initialVal = '0' + initialVal;
+        }
+    }
+    el.textContent = prefix + initialVal + suffix;
+
+    requestAnimationFrame(animateFrame);
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', observeCounters);
+} else {
+    observeCounters();
+}
